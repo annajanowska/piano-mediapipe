@@ -1,3 +1,4 @@
+import cvzone
 import mediapipe as mp
 import numpy as np
 import cv2
@@ -6,6 +7,14 @@ import time
 # Initialize width and height camera
 cameraWidth = 1280
 cameraHeight = 720
+
+whiteNotes = ["c", "d", "e", "f", "g", "a", "h",
+              "c1", "d1", "e1", "f1", "g1", "a1", "h1",
+              "c", "d", "e", "f", "g","a","h"]
+blackNotes = ["c#", "d#", "f#", "g#", "a#",
+              "c1#", "d1#", "f1#", "g1#", "a1#",
+              "c2#", "d2#", "f2#", "g2#", "a2#"]
+buttonList = []
 
 
 class HandDetector:
@@ -40,7 +49,7 @@ class HandDetector:
                                            self.mpDraw.DrawingSpec(color=(0, 0, 0), thickness=2, circle_radius=4),
                                            self.mpDraw.DrawingSpec(color=(157, 168, 58), thickness=3, circle_radius=4),
                                            )
-                if (self.showHandLabel(handIndex, coordinatesLandmark, self.results)):
+                if self.showHandLabel(handIndex, coordinatesLandmark, self.results):
                     label, coordinates = self.showHandLabel(handIndex, coordinatesLandmark, self.results)
                     cv2.putText(image, label, coordinates, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
@@ -48,7 +57,8 @@ class HandDetector:
         label = results.multi_handedness[index].classification[0].label
         coordinates = tuple(np.multiply(
             np.array(
-                (coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].x, coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].y)),
+                (coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].x,
+                 coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].y)),
             [cameraWidth, cameraHeight]).astype(int))
 
         return label, coordinates
@@ -60,17 +70,83 @@ class HandDetector:
                 label = self.results.multi_handedness[handIndex].classification[0].label
                 myHand = self.results.multi_hand_landmarks[handIndex]
                 for id, lm in enumerate(myHand.landmark):
-                     height, width, channels = img.shape
-                     cx, cy = int(lm.x * width), int(lm.y * height)
-                     landmarkList.append([id, cx, cy, label])
+                    height, width, channels = img.shape
+                    cx, cy = int(lm.x * width), int(lm.y * height)
+                    landmarkList.append([id, cx, cy, label])
 
         return landmarkList
+
+
+class Button:
+
+    def __init__(self, name, position, color, sound, size):
+        self.name = name
+        self.position = position
+        self.color = color
+        self.sound = sound
+        self.size = size
+
+
+def initializeKeyboard():
+    noteHeight = 100
+    noteWidth = 50
+    for i in range(len(whiteNotes)):
+        buttonList.append(Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], "sound.mp3",
+                                 [noteWidth, 3*noteHeight]))
+
+    counter = 0
+    tracer = 0
+    checker = False
+
+    for j in range(len(blackNotes)):
+        tracer += 1
+        buttonList.append(
+            Button(blackNotes[j], [125 + (j * noteWidth) + (counter * noteWidth), noteHeight], [255, 255, 255],
+                   "sound.mp3", [int(0.8*noteWidth), 2*noteHeight]))
+
+        if tracer == 2 and checker is False:
+            counter += 1
+            tracer = 0
+            checker = True
+
+        if tracer == 3 and checker is True:
+            counter += 1
+            tracer = 0
+            checker = False
+
+    return buttonList
+
+
+def showKeyboard(img, notesList):
+    overlayImage = img.copy()
+
+    for note in notesList:
+        x, y = note.position
+        width, height = note.size
+
+        if note.color == [0, 0, 0]:
+            cv2.rectangle(overlayImage, note.position, (x + width, y + height), (255, 255, 255), cv2.FILLED)
+            cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), 2)
+            cv2.putText(overlayImage, note.name, (x + 10, y + 250), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 4)
+
+        if note.color == [255, 255, 255]:
+            cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), cv2.FILLED)
+            cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), 2)
+            cv2.putText(overlayImage, note.name, (x + 10, y + 55), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 4)
+
+    alpha = 0.4  # Factor of transparency
+
+    img = cv2.addWeighted(overlayImage, alpha, img, 1-alpha, 0)
+
+    return img
 
 
 def showCamera():
     captureDevice = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     captureDevice.set(3, cameraWidth)
     captureDevice.set(4, cameraHeight)
+
+    notesList = initializeKeyboard()
 
     previousTime = 0
 
@@ -79,19 +155,20 @@ def showCamera():
     while captureDevice.isOpened():
         success, img = captureDevice.read()
         img = detector.detectHands(img)
+        img = showKeyboard(img, notesList)
         landmark = detector.findLandmarkList(img)
 
         currentTime = time.time()
-        fps = 1/(currentTime-previousTime)
+        fps = 1 / (currentTime - previousTime)
         previousTime = currentTime
 
-        cv2.putText(img, "Fps: " + str(int(fps)), (cameraWidth-150, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+        cv2.putText(img, "Fps: " + str(int(fps)), (cameraWidth - 150, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
         cv2.imshow("Hand Tracking", img)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    if captureDevice.isOpened() != True:
+    if not captureDevice.isOpened():
         print("Camera is not connected properly!")
         exit()
 
