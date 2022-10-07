@@ -53,6 +53,20 @@ class HandDetector:
 
         return label, coordinates
 
+    def findLandmarkList(self, img):
+        landmarkList = []
+        if self.results.multi_hand_landmarks:
+            for handIndex, coordinates in enumerate(self.results.multi_hand_landmarks):
+                label = self.results.multi_handedness[handIndex].classification[0].label
+                myHand = self.results.multi_hand_landmarks[handIndex]
+                for id, lm in enumerate(myHand.landmark):
+                     height, width, channels = img.shape
+                     cx, cy = int(lm.x * width), int(lm.y * height)
+                     landmarkList.append([id, cx, cy, label])
+
+        return landmarkList
+
+
 def showCamera():
     captureDevice = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     captureDevice.set(3, cameraWidth)
@@ -65,6 +79,7 @@ def showCamera():
     while captureDevice.isOpened():
         success, img = captureDevice.read()
         img = detector.detectHands(img)
+        landmark = detector.findLandmarkList(img)
 
         currentTime = time.time()
         fps = 1/(currentTime-previousTime)
