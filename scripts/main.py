@@ -14,6 +14,7 @@ whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-h",
 blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
               "5-cs", "5-ds", "5-fs", "5-gs", "5-as",
               "6-cs", "6-ds", "6-fs", "6-gs", "6-as"]
+tipsId = [4, 8, 12, 16, 20]
 buttonList = []
 
 
@@ -65,14 +66,17 @@ class HandDetector:
 
     def findLandmarkList(self, img):
         landmarkList = []
+
         if self.results.multi_hand_landmarks:
             for handIndex, coordinates in enumerate(self.results.multi_hand_landmarks):
                 label = self.results.multi_handedness[handIndex].classification[0].label
                 myHand = self.results.multi_hand_landmarks[handIndex]
+                handLandmark = []
                 for id, lm in enumerate(myHand.landmark):
                     height, width, channels = img.shape
                     cx, cy = int(lm.x * width), int(lm.y * height)
-                    landmarkList.append([id, cx, cy, label])
+                    handLandmark.append([id, cx, cy, label])
+                landmarkList.append(handLandmark)
 
         return landmarkList
 
@@ -91,8 +95,9 @@ def initializeKeyboard():
     noteHeight = 100
     noteWidth = 50
     for i in range(len(whiteNotes)):
-        buttonList.append(Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], str(whiteNotes[i]) + ".mp3",
-                                 [noteWidth, 3*noteHeight]))
+        buttonList.append(
+            Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], str(whiteNotes[i]) + ".mp3",
+                   [noteWidth, 3 * noteHeight]))
 
     counter = 0
     tracer = 0
@@ -102,7 +107,7 @@ def initializeKeyboard():
         tracer += 1
         buttonList.append(
             Button(blackNotes[j], [125 + (j * noteWidth) + (counter * noteWidth), noteHeight], [255, 255, 255],
-                   str(blackNotes[j]) + ".mp3", [int(0.8*noteWidth), 2*noteHeight]))
+                   str(blackNotes[j]) + ".mp3", [int(0.8 * noteWidth), 2 * noteHeight]))
 
         if tracer == 2 and checker is False:
             counter += 1
@@ -136,9 +141,59 @@ def showKeyboard(img, notesList):
 
     alpha = 0.4  # Factor of transparency
 
-    img = cv2.addWeighted(overlayImage, alpha, img, 1-alpha, 0)
+    img = cv2.addWeighted(overlayImage, alpha, img, 1 - alpha, 0)
 
     return img
+
+
+def checkBendFinger(landmarkList, img):
+    bendTipsList = []
+    pressedButton = []
+
+    if len(landmarkList) != 0:
+        for i in range(len(landmarkList)):
+
+            if landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 20 \
+                    and landmarkList[i][tipsId[0]][3] == "Right":
+                bendTipsList.append(landmarkList[i][tipsId[0]])
+                # print("Right thumb was bent")
+
+            if landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 20 \
+                    and landmarkList[i][tipsId[0]][3] == "Left":
+                bendTipsList.append(landmarkList[i][tipsId[0]])
+                # print("Left thumb was bent")
+
+            for id in range(1, 5):
+                if landmarkList[i][tipsId[id] - 2][2] - landmarkList[i][tipsId[id]][2] <= 30:
+                    bendTipsList.append(landmarkList[i][tipsId[id]])
+                    # print("Finger was bent, id: " + str(id+1))
+
+        pressedButton = checkIfButtonIsPressed(bendTipsList, img)
+
+    return pressedButton, img
+
+
+def checkIfButtonIsPressed(fingerBend, img):
+    pressedButton = []
+
+    if fingerBend:
+        for button in buttonList:
+            x, y = button.position
+            width, height = button.size
+            color = button.color
+
+            for finger in fingerBend:
+                if color == [0, 0, 0]:
+                    # y + 200 because 200 is total height black key
+                    if x < finger[1] < x + width and y + 200 < finger[2] < y + height:
+                        cv2.rectangle(img, button.position, (x + width, y + height), (50, 50, 50), cv2.FILLED)
+                        pressedButton.append(button)
+                else:
+                    if x < finger[1] < x + width and y < finger[2] < y + height:
+                        cv2.rectangle(img, button.position, (x + width, y + height), (50, 50, 50), cv2.FILLED)
+                        pressedButton.append(button)
+
+    return pressedButton
 
 
 def showCamera():
@@ -157,6 +212,7 @@ def showCamera():
         img = detector.detectHands(img)
         img = showKeyboard(img, notesList)
         landmark = detector.findLandmarkList(img)
+        fingerBend, img = checkBendFinger(landmark, img)
 
         currentTime = time.time()
         fps = 1 / (currentTime - previousTime)
