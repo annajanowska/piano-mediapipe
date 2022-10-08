@@ -8,12 +8,12 @@ import time
 cameraWidth = 1280
 cameraHeight = 720
 
-whiteNotes = ["c", "d", "e", "f", "g", "a", "h",
-              "c1", "d1", "e1", "f1", "g1", "a1", "h1",
-              "c", "d", "e", "f", "g","a","h"]
-blackNotes = ["c#", "d#", "f#", "g#", "a#",
-              "c1#", "d1#", "f1#", "g1#", "a1#",
-              "c2#", "d2#", "f2#", "g2#", "a2#"]
+whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-h",
+              "5-c", "5-c", "5-e", "5-f", "5-g", "5-a", "5-h",
+              "6-c", "6-d", "6-e", "6-f", "6-g", "6-a", "6-h"]
+blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
+              "5-cs", "5-ds", "5-fs", "5-gs", "5-as",
+              "6-cs", "6-ds", "6-fs", "6-gs", "6-as"]
 buttonList = []
 
 
@@ -91,7 +91,7 @@ def initializeKeyboard():
     noteHeight = 100
     noteWidth = 50
     for i in range(len(whiteNotes)):
-        buttonList.append(Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], "sound.mp3",
+        buttonList.append(Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], str(whiteNotes[i]) + ".mp3",
                                  [noteWidth, 3*noteHeight]))
 
     counter = 0
@@ -102,7 +102,7 @@ def initializeKeyboard():
         tracer += 1
         buttonList.append(
             Button(blackNotes[j], [125 + (j * noteWidth) + (counter * noteWidth), noteHeight], [255, 255, 255],
-                   "sound.mp3", [int(0.8*noteWidth), 2*noteHeight]))
+                   str(blackNotes[j]) + ".mp3", [int(0.8*noteWidth), 2*noteHeight]))
 
         if tracer == 2 and checker is False:
             counter += 1
