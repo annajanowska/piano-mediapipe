@@ -1,23 +1,39 @@
-import cvzone
 import mediapipe as mp
 import numpy as np
 import cv2
 import time
 import pyglet
 from threading import Thread
+import glob
+import os
+import random
 
 # Initialize width and height camera
 cameraWidth = 1280
 cameraHeight = 720
 
+# Initialize note names
 whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-b",
               "5-c", "5-d", "5-e", "5-f", "5-g", "5-a", "5-b"]
 
 blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
               "5-cs", "5-ds", "5-fs", "5-gs", "5-as"]
 
+# Define index of tips position
 tipsId = [4, 8, 12, 16, 20]
+
+widthWhiteNoteKey = 65
+heightWhiteNoteKey = 330
+shiftWhiteNote = 150
+whiteColor = [0, 0, 0]
+
+widthBlackNoteKey = int(0.7 * widthWhiteNoteKey)
+heightBlackNoteKey = int(2 / 3 * heightWhiteNoteKey)
+shiftBlackNote = 150 + int(0.7 * widthWhiteNoteKey)
+blackColor = [255, 255, 255]
+
 buttonList = []
+processDictionary = {}
 
 
 class HandDetector:
@@ -35,10 +51,10 @@ class HandDetector:
         self.mpDraw = mp.solutions.drawing_utils
 
     def detectHands(self, img):
-        image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # model only works with RGB mode
+        image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Mediapipe model works only with RGB mode
         image = cv2.flip(image, 1)
         image.flags.writeable = False
-        self.results = self.hands.process(image)
+        self.results = self.hands.process(image)  # Hand landmark detection process
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         self.drawHandsConnections(image)
@@ -56,12 +72,12 @@ class HandDetector:
                     label, coordinates = self.showHandLabel(handIndex, coordinatesLandmark, self.results)
                     cv2.putText(image, label, coordinates, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
-    def showHandLabel(self, index, coordinatesLandmark, results):
-        label = results.multi_handedness[index].classification[0].label
+    def showHandLabel(self, id, coordinates, result):
+        label = result.multi_handedness[id].classification[0].label
         coordinates = tuple(np.multiply(
             np.array(
-                (coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].x,
-                 coordinatesLandmark.landmark[self.mpHands.HandLandmark.WRIST].y)),
+                (coordinates.landmark[self.mpHands.HandLandmark.WRIST].x,
+                 coordinates.landmark[self.mpHands.HandLandmark.WRIST].y)),
             [cameraWidth, cameraHeight]).astype(int))
 
         return label, coordinates
@@ -110,23 +126,51 @@ class ThreadCountdown:
         self.buttonSound = sound
 
 
+def setCaptureDeviceSetting(cameraId=0):
+    camera = cv2.VideoCapture(cameraId, cv2.CAP_DSHOW)
+    camera.set(3, cameraWidth)
+    camera.set(4, cameraHeight)
+
+    return camera
+
+
+def defineSoundTrackList():
+    sounds = []
+    os.chdir("../music")
+    for file in glob.glob("*.mp3"):
+        sounds.append(file)
+
+    return sounds
+
+
 def initializeKeyboard():
-    noteHeight = 100
-    noteWidth = 50
+    soundsList = defineSoundTrackList()
+    defineWhiteNoteKeys(soundsList)
+    defineBlackNoteKeys(soundsList)
+
+    return buttonList
+
+
+def defineWhiteNoteKeys(musicSoundsList):
     for i in range(len(whiteNotes)):
         buttonList.append(
-            Button(whiteNotes[i], [i * noteWidth + 100, noteHeight], [0, 0, 0], str(whiteNotes[i]) + ".mp3",
-                   [noteWidth, 3 * noteHeight]))
+            Button(whiteNotes[i], [i * widthWhiteNoteKey + shiftWhiteNote, int(heightWhiteNoteKey / 3)], whiteColor,
+                   defineSoundForSpecificKey(whiteNotes[i], musicSoundsList), [widthWhiteNoteKey, heightWhiteNoteKey]))
 
+
+def defineBlackNoteKeys(musicSoundsList):
     counter = 0
     tracer = 0
     checker = False
 
-    for j in range(len(blackNotes)):
+    for i in range(len(blackNotes)):
         tracer += 1
         buttonList.append(
-            Button(blackNotes[j], [125 + (j * noteWidth) + (counter * noteWidth), noteHeight], [255, 255, 255],
-                   str(blackNotes[j]) + ".mp3", [int(0.8 * noteWidth), 2 * noteHeight]))
+            Button(blackNotes[i],
+                   [shiftBlackNote + (i * int(1.5 * widthBlackNoteKey)) + (counter * int(1.3 * widthBlackNoteKey)),
+                    int(0.5 * heightBlackNoteKey)], blackColor,
+                   defineSoundForSpecificKey(blackNotes[i], musicSoundsList),
+                   [widthBlackNoteKey, heightBlackNoteKey]))
 
         if tracer == 2 and checker is False:
             counter += 1
@@ -138,7 +182,15 @@ def initializeKeyboard():
             tracer = 0
             checker = False
 
-    return buttonList
+
+def defineSoundForSpecificKey(buttonName, soundsList):
+    if buttonName + ".mp3" in soundsList:
+        sound = buttonName + ".mp3"
+    else:
+        sound = "Not exist specific sound " + buttonName
+        print(sound)
+
+    return sound
 
 
 def showKeyboard(img, notesList):
@@ -148,42 +200,40 @@ def showKeyboard(img, notesList):
         x, y = note.position
         width, height = note.size
 
-        if note.color == [0, 0, 0]:
+        if note.color == whiteColor:
             cv2.rectangle(overlayImage, note.position, (x + width, y + height), (255, 255, 255), cv2.FILLED)
             cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), 2)
-            cv2.putText(overlayImage, note.name, (x + 10, y + 250), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 4)
 
-        if note.color == [255, 255, 255]:
+        if note.color == blackColor:
             cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), cv2.FILLED)
             cv2.rectangle(overlayImage, note.position, (x + width, y + height), (0, 0, 0), 2)
-            cv2.putText(overlayImage, note.name, (x + 10, y + 55), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 4)
 
-    alpha = 0.4  # Factor of transparency
+    alpha = 0.5  # Factor of transparency
 
     img = cv2.addWeighted(overlayImage, alpha, img, 1 - alpha, 0)
 
     return img
 
 
-def checkBendFinger(landmarkList, img):
+def checkBendFingers(landmarkList, img):
     bendTipsList = []
     pressedButton = []
 
     if len(landmarkList) != 0:
         for i in range(len(landmarkList)):
 
-            if landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 20 \
+            if landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 10 \
                     and landmarkList[i][tipsId[0]][3] == "Right":
                 bendTipsList.append(landmarkList[i][tipsId[0]])
                 # print("Right thumb was bent")
 
-            if landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 20 \
+            if landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 10 \
                     and landmarkList[i][tipsId[0]][3] == "Left":
                 bendTipsList.append(landmarkList[i][tipsId[0]])
                 # print("Left thumb was bent")
 
             for id in range(1, 5):
-                if landmarkList[i][tipsId[id] - 2][2] - landmarkList[i][tipsId[id]][2] <= 30:
+                if landmarkList[i][tipsId[id] - 2][2] - landmarkList[i][tipsId[id]][2] <= 35:
                     bendTipsList.append(landmarkList[i][tipsId[id]])
                     # print("Finger was bent, id: " + str(id+1))
 
@@ -202,17 +252,26 @@ def checkIfButtonIsPressed(fingerBend, img):
             color = button.color
 
             for finger in fingerBend:
-                if color == [0, 0, 0]:
-                    # y + 200 because 200 is total height black key
-                    if x < finger[1] < x + width and y + 200 < finger[2] < y + height:
-                        cv2.rectangle(img, button.position, (x + width, y + height), (50, 50, 50), cv2.FILLED)
+                pressedButtonColor = generateRandomColor()
+                if color == whiteColor:
+                    if x < finger[1] < x + width and y + heightBlackNoteKey < finger[2] < y + height:
+                        cv2.rectangle(img, button.position, (x + width, y + height), pressedButtonColor, cv2.FILLED)
                         pressedButton.append(button)
                 else:
                     if x < finger[1] < x + width and y < finger[2] < y + height:
-                        cv2.rectangle(img, button.position, (x + width, y + height), (50, 50, 50), cv2.FILLED)
+                        cv2.rectangle(img, button.position, (x + width, y + height), pressedButtonColor, cv2.FILLED)
                         pressedButton.append(button)
 
     return pressedButton
+
+
+def generateRandomColor():
+    red = random.randint(0,255)
+    green = random.randint(0,255)
+    blue = random.randint(0,255)
+    color = (blue, green, red)
+
+    return color
 
 
 def createMusicFrameToPlay(pressedButtonList):
@@ -224,46 +283,50 @@ def createMusicFrameToPlay(pressedButtonList):
     return currentMusicFrame
 
 
-def showCamera():
-    captureDevice = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    captureDevice.set(3, cameraWidth)
-    captureDevice.set(4, cameraHeight)
+def initializeProcess():
+    camera = setCaptureDeviceSetting()
+    notes = initializeKeyboard()
+    detector = HandDetector()
 
-    notesList = initializeKeyboard()
+    return camera, notes, detector
+
+
+def playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay):
+    if currentMusicFrameToPlay == previousMusicFrameToPlay:
+        pass
+    elif currentMusicFrameToPlay != previousMusicFrameToPlay:
+
+        soundToTurnOff = list(set(previousMusicFrameToPlay) - set(currentMusicFrameToPlay))
+
+        if soundToTurnOff:
+            for sound in soundToTurnOff:
+                soundToKill = processDictionary.get(sound)
+                Thread(target=soundToKill.terminateProcess).start()
+
+        soundToPlay = list(set(currentMusicFrameToPlay) - set(previousMusicFrameToPlay))
+
+        for note in soundToPlay:
+            process = ThreadCountdown()
+            t = Thread(target=process.runProcess, args=(note,))
+            processDictionary[note] = process
+            t.start()
+
+
+def main():
+    captureDevice, notesList, detector = initializeProcess()
 
     previousTime = 0
     previousMusicFrameToPlay = []
-    processDictionary = {}
-
-    detector = HandDetector()
 
     while captureDevice.isOpened():
         success, img = captureDevice.read()
         img = detector.detectHands(img)
         img = showKeyboard(img, notesList)
         landmark = detector.findLandmarkList(img)
-        pressedButtonList, img = checkBendFinger(landmark, img)
+        pressedButtonList, img = checkBendFingers(landmark, img)
 
         currentMusicFrameToPlay = createMusicFrameToPlay(pressedButtonList)
-
-        if currentMusicFrameToPlay == previousMusicFrameToPlay:
-            print("No need to play again")
-        elif currentMusicFrameToPlay != previousMusicFrameToPlay:
-
-            soundToTurnOff = list(set(previousMusicFrameToPlay) - set(currentMusicFrameToPlay))
-
-            if soundToTurnOff:
-                for sound in soundToTurnOff:
-                    soundToKill = processDictionary.get(sound)
-                    Thread(target=soundToKill.terminateProcess).start()
-
-            soundToPlay = list(set(currentMusicFrameToPlay) - set(previousMusicFrameToPlay))
-            for note in soundToPlay:
-                process = ThreadCountdown()
-                t = Thread(target=process.runProcess, args=(note,))
-                processDictionary[note] = process
-                t.start()
-
+        playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay)
         previousMusicFrameToPlay = currentMusicFrameToPlay
 
         currentTime = time.time()
@@ -284,9 +347,5 @@ def showCamera():
     cv2.destroyAllWindows()
 
 
-def initialize():
-    showCamera()
-
-
 if __name__ == "__main__":
-    initialize()
+    main()
