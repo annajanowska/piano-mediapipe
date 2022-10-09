@@ -3,17 +3,19 @@ import mediapipe as mp
 import numpy as np
 import cv2
 import time
+import pyglet
+from threading import Thread
 
 # Initialize width and height camera
 cameraWidth = 1280
 cameraHeight = 720
 
-whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-h",
-              "5-c", "5-c", "5-e", "5-f", "5-g", "5-a", "5-h",
-              "6-c", "6-d", "6-e", "6-f", "6-g", "6-a", "6-h"]
+whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-b",
+              "5-c", "5-d", "5-e", "5-f", "5-g", "5-a", "5-b"]
+
 blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
-              "5-cs", "5-ds", "5-fs", "5-gs", "5-as",
-              "6-cs", "6-ds", "6-fs", "6-gs", "6-as"]
+              "5-cs", "5-ds", "5-fs", "5-gs", "5-as"]
+
 tipsId = [4, 8, 12, 16, 20]
 buttonList = []
 
@@ -89,6 +91,23 @@ class Button:
         self.color = color
         self.sound = sound
         self.size = size
+
+
+class ThreadCountdown:
+
+    def __init__(self):
+        self.buttonSound = ""
+        self.player = pyglet.media.Player()
+
+    def terminateProcess(self):
+        self.player.pause()
+
+    def runProcess(self, sound):
+        path = sound
+        MediaLoad = pyglet.media.load("../music/" + path)
+        self.player.queue(MediaLoad)
+        self.player.play()
+        self.buttonSound = sound
 
 
 def initializeKeyboard():
@@ -196,6 +215,15 @@ def checkIfButtonIsPressed(fingerBend, img):
     return pressedButton
 
 
+def createMusicFrameToPlay(pressedButtonList):
+    currentMusicFrame = []
+
+    for button in pressedButtonList:
+        currentMusicFrame.append(button.sound)
+
+    return currentMusicFrame
+
+
 def showCamera():
     captureDevice = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     captureDevice.set(3, cameraWidth)
@@ -204,6 +232,8 @@ def showCamera():
     notesList = initializeKeyboard()
 
     previousTime = 0
+    previousMusicFrameToPlay = []
+    processDictionary = {}
 
     detector = HandDetector()
 
@@ -212,7 +242,29 @@ def showCamera():
         img = detector.detectHands(img)
         img = showKeyboard(img, notesList)
         landmark = detector.findLandmarkList(img)
-        fingerBend, img = checkBendFinger(landmark, img)
+        pressedButtonList, img = checkBendFinger(landmark, img)
+
+        currentMusicFrameToPlay = createMusicFrameToPlay(pressedButtonList)
+
+        if currentMusicFrameToPlay == previousMusicFrameToPlay:
+            print("No need to play again")
+        elif currentMusicFrameToPlay != previousMusicFrameToPlay:
+
+            soundToTurnOff = list(set(previousMusicFrameToPlay) - set(currentMusicFrameToPlay))
+
+            if soundToTurnOff:
+                for sound in soundToTurnOff:
+                    soundToKill = processDictionary.get(sound)
+                    Thread(target=soundToKill.terminateProcess).start()
+
+            soundToPlay = list(set(currentMusicFrameToPlay) - set(previousMusicFrameToPlay))
+            for note in soundToPlay:
+                process = ThreadCountdown()
+                t = Thread(target=process.runProcess, args=(note,))
+                processDictionary[note] = process
+                t.start()
+
+        previousMusicFrameToPlay = currentMusicFrameToPlay
 
         currentTime = time.time()
         fps = 1 / (currentTime - previousTime)
