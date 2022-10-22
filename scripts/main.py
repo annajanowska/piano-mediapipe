@@ -44,6 +44,7 @@ class HandDetector:
         self.complexity = complexity
         self.detectionConfidence = detectionConfidence
         self.trackConfidence = trackConfidence
+        self.results = None
 
         self.mpHands = mp.solutions.hands
         self.hands = self.mpHands.Hands(self.mode, self.maxNumberHands, self.complexity, self.detectionConfidence,
@@ -72,8 +73,8 @@ class HandDetector:
                     label, coordinates = self.showHandLabel(handIndex, coordinatesLandmark, self.results)
                     cv2.putText(image, label, coordinates, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
-    def showHandLabel(self, id, coordinates, result):
-        label = result.multi_handedness[id].classification[0].label
+    def showHandLabel(self, index, coordinates, result):
+        label = result.multi_handedness[index].classification[0].label
         coordinates = tuple(np.multiply(
             np.array(
                 (coordinates.landmark[self.mpHands.HandLandmark.WRIST].x,
@@ -90,10 +91,10 @@ class HandDetector:
                 label = self.results.multi_handedness[handIndex].classification[0].label
                 myHand = self.results.multi_hand_landmarks[handIndex]
                 handLandmark = []
-                for id, lm in enumerate(myHand.landmark):
+                for index, lm in enumerate(myHand.landmark):
                     height, width, channels = img.shape
                     cx, cy = int(lm.x * width), int(lm.y * height)
-                    handLandmark.append([id, cx, cy, label])
+                    handLandmark.append([index, cx, cy, label])
                 landmarkList.append(handLandmark)
 
         return landmarkList
@@ -112,8 +113,8 @@ class Button:
 class ThreadCountdown:
 
     def __init__(self):
-        self.buttonSound = ""
         self.player = pyglet.media.Player()
+        self.buttonSound = None
 
     def terminateProcess(self):
         self.player.pause()
@@ -126,8 +127,8 @@ class ThreadCountdown:
         self.buttonSound = sound
 
 
-def setCaptureDeviceSetting(cameraId=0):
-    camera = cv2.VideoCapture(cameraId, cv2.CAP_DSHOW)
+def setCaptureDeviceSetting(cameraID=0):
+    camera = cv2.VideoCapture(cameraID, cv2.CAP_DSHOW)
     camera.set(3, cameraWidth)
     camera.set(4, cameraHeight)
 
@@ -222,19 +223,25 @@ def checkBendFingers(landmarkList, img):
     if len(landmarkList) != 0:
         for i in range(len(landmarkList)):
 
-            if landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 10 \
-                    and landmarkList[i][tipsId[0]][3] == "Right":
+            rightThumbIsBent = landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 10 and \
+                                landmarkList[i][tipsId[0]][3] == "Right";
+
+            leftThumbIsBent = landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 10 and \
+                                landmarkList[i][tipsId[0]][3] == "Left";
+
+
+            if rightThumbIsBent:
                 bendTipsList.append(landmarkList[i][tipsId[0]])
                 # print("Right thumb was bent")
 
-            if landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 10 \
-                    and landmarkList[i][tipsId[0]][3] == "Left":
+            if leftThumbIsBent:
                 bendTipsList.append(landmarkList[i][tipsId[0]])
                 # print("Left thumb was bent")
 
-            for id in range(1, 5):
-                if landmarkList[i][tipsId[id] - 2][2] - landmarkList[i][tipsId[id]][2] <= 35:
-                    bendTipsList.append(landmarkList[i][tipsId[id]])
+            for index in range(1, 5):
+                fingerIsBent = landmarkList[i][tipsId[index] - 2][2] - landmarkList[i][tipsId[index]][2] <= 35;
+                if fingerIsBent:
+                    bendTipsList.append(landmarkList[i][tipsId[index]])
                     # print("Finger was bent, id: " + str(id+1))
 
         pressedButton = checkIfButtonIsPressed(bendTipsList, img)
@@ -253,12 +260,17 @@ def checkIfButtonIsPressed(fingerBend, img):
 
             for finger in fingerBend:
                 pressedButtonColor = generateRandomColor()
+
+                fingerOverKeyXCoord = x < finger[1] < x + width
+                fingerOverWhiteKeyYCoord = y + heightBlackNoteKey < finger[2] < y + height
+                fingerOverBlackKeyYCoord = y < finger[2] < y + height
+
                 if color == whiteColor:
-                    if x < finger[1] < x + width and y + heightBlackNoteKey < finger[2] < y + height:
+                    if fingerOverKeyXCoord and fingerOverWhiteKeyYCoord:
                         cv2.rectangle(img, button.position, (x + width, y + height), pressedButtonColor, cv2.FILLED)
                         pressedButton.append(button)
                 else:
-                    if x < finger[1] < x + width and y < finger[2] < y + height:
+                    if fingerOverKeyXCoord and fingerOverBlackKeyYCoord:
                         cv2.rectangle(img, button.position, (x + width, y + height), pressedButtonColor, cv2.FILLED)
                         pressedButton.append(button)
 
@@ -266,9 +278,9 @@ def checkIfButtonIsPressed(fingerBend, img):
 
 
 def generateRandomColor():
-    red = random.randint(0,255)
-    green = random.randint(0,255)
-    blue = random.randint(0,255)
+    red = random.randint(0, 255)
+    green = random.randint(0, 255)
+    blue = random.randint(0, 255)
     color = (blue, green, red)
 
     return color
