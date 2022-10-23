@@ -1,16 +1,23 @@
 import mediapipe as mp
 import numpy as np
+import pandas as pd
+from threading import Thread
+from datetime import datetime
 import cv2
 import time
 import pyglet
-from threading import Thread
 import glob
 import os
 import random
+import timeit
+import keyboard
 
 # Initialize width and height camera
 cameraWidth = 1280
 cameraHeight = 720
+
+# Define index of tips position
+tipsId = [4, 8, 12, 16, 20]
 
 # Initialize note names
 whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-b",
@@ -19,14 +26,14 @@ whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-b",
 blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
               "5-cs", "5-ds", "5-fs", "5-gs", "5-as"]
 
-# Define index of tips position
-tipsId = [4, 8, 12, 16, 20]
 
+# Initialize settings for white key
 widthWhiteNoteKey = 65
 heightWhiteNoteKey = 330
 shiftWhiteNote = 150
 whiteColor = [0, 0, 0]
 
+# Initialize settings for black key
 widthBlackNoteKey = int(0.7 * widthWhiteNoteKey)
 heightBlackNoteKey = int(2 / 3 * heightWhiteNoteKey)
 shiftBlackNote = 150 + int(0.7 * widthWhiteNoteKey)
@@ -34,6 +41,10 @@ blackColor = [255, 255, 255]
 
 buttonList = []
 processDictionary = {}
+
+# Initialize tables to benchmarking process
+mainLoopTable = []
+handDetectorTable = []
 
 
 class HandDetector:
@@ -324,6 +335,14 @@ def playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay):
             t.start()
 
 
+def saveBenchmarkingDataToCsv():
+    benchmarking_data = {'main loop' : mainLoopTable,
+                         'hand detector' : handDetectorTable
+                         }
+    df = df = pd.DataFrame(benchmarking_data, columns=['main loop' , 'hand detector'])
+    print(df)
+    df.to_csv('../benchmarking/benchmarking_data' + str(datetime.timestamp(datetime.now())) + '.csv', encoding='utf-8', index=False)
+
 def main():
     captureDevice, notesList, detector = initializeProcess()
 
@@ -351,13 +370,16 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+        if keyboard.is_pressed("s"):
+            saveBenchmarkingDataToCsv()
+            break
+
     if not captureDevice.isOpened():
         print("Camera is not connected properly!")
         exit()
 
     captureDevice.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     main()
