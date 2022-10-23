@@ -2,7 +2,6 @@ import mediapipe as mp
 import numpy as np
 import pandas as pd
 from threading import Thread
-from datetime import datetime
 import cv2
 import time
 import pyglet
@@ -26,7 +25,6 @@ whiteNotes = ["4-c", "4-d", "4-e", "4-f", "4-g", "4-a", "4-b",
 blackNotes = ["4-cs", "4-ds", "4-fs", "4-gs", "4-as",
               "5-cs", "5-ds", "5-fs", "5-gs", "5-as"]
 
-
 # Initialize settings for white key
 widthWhiteNoteKey = 65
 heightWhiteNoteKey = 330
@@ -43,7 +41,7 @@ buttonList = []
 processDictionary = {}
 
 # Initialize tables to benchmarking process
-mainLoopTable = []
+mainLoopTimeTable = []
 handDetectorTable = []
 
 
@@ -69,7 +67,6 @@ class HandDetector:
         self.results = self.hands.process(image)  # Hand landmark detection process
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        self.drawHandsConnections(image)
 
         return image
 
@@ -84,6 +81,8 @@ class HandDetector:
                     label, coordinates = self.showHandLabel(handIndex, coordinatesLandmark, self.results)
                     cv2.putText(image, label, coordinates, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
+        return image
+
     def showHandLabel(self, index, coordinates, result):
         label = result.multi_handedness[index].classification[0].label
         coordinates = tuple(np.multiply(
@@ -94,7 +93,7 @@ class HandDetector:
 
         return label, coordinates
 
-    def findLandmarkList(self, img):
+    def parseLandmarksToList(self, img):
         landmarkList = []
 
         if self.results.multi_hand_landmarks:
@@ -235,11 +234,10 @@ def checkBendFingers(landmarkList, img):
         for i in range(len(landmarkList)):
 
             rightThumbIsBent = landmarkList[i][tipsId[0] - 1][1] - landmarkList[i][tipsId[0]][1] < 10 and \
-                                landmarkList[i][tipsId[0]][3] == "Right";
+                               landmarkList[i][tipsId[0]][3] == "Right"
 
             leftThumbIsBent = landmarkList[i][tipsId[0]][1] - landmarkList[i][tipsId[0] - 1][1] < 10 and \
-                                landmarkList[i][tipsId[0]][3] == "Left";
-
+                              landmarkList[i][tipsId[0]][3] == "Left"
 
             if rightThumbIsBent:
                 bendTipsList.append(landmarkList[i][tipsId[0]])
@@ -307,9 +305,20 @@ def createMusicFrameToPlay(pressedButtonList):
 
 
 def initializeProcess():
+    # captureSettingTimer = timeit.default_timer()
     camera = setCaptureDeviceSetting()
+    # totalCaptureSettingTime = timeit.default_timer()-captureSettingTimer
+    # print("Capture device benchmarking: " + str(totalCaptureSettingTime))
+
+    # initializeKeyboardTimer = timeit.default_timer()
     notes = initializeKeyboard()
+    # totalInitializeKeyboardTimer = timeit.default_timer()-initializeKeyboardTimer
+    # print("Keyboard initialize benchmarking: " + str(totalInitializeKeyboardTimer))
+
+    # handDetectorObjectTimer = timeit.default_timer()
     detector = HandDetector()
+    # totalHandDetectorObjectTimer = timeit.default_timer()-handDetectorObjectTimer
+    # print("Hand detector object benchmarking: " + str(totalHandDetectorObjectTimer))
 
     return camera, notes, detector
 
@@ -335,44 +344,96 @@ def playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay):
             t.start()
 
 
+def calculateFPS(previousTime, img):
+    currentTime = time.time()
+    fps = 1 / (currentTime - previousTime)
+
+    cv2.putText(img, "Fps: " + str(int(fps)), (cameraWidth - 150, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+
+    return currentTime, img
+
+
 def saveBenchmarkingDataToCsv():
-    benchmarking_data = {'main loop' : mainLoopTable,
-                         'hand detector' : handDetectorTable
+    benchmarking_data = {'main loop': mainLoopTimeTable
                          }
-    df = df = pd.DataFrame(benchmarking_data, columns=['main loop' , 'hand detector'])
+    df = df = pd.DataFrame(benchmarking_data, columns=['main loop', 'hand detector'])
     print(df)
-    df.to_csv('../benchmarking/benchmarking_data' + str(datetime.timestamp(datetime.now())) + '.csv', encoding='utf-8', index=False)
+    # df.to_csv('../benchmarking/benchmarking_data' + str(datetime.timestamp(datetime.now())) + '.csv', \
+    # encoding='utf-8', index=False)
+
 
 def main():
-    captureDevice, notesList, detector = initializeProcess()
+    # initProcessTimer = timeit.default_timer()
 
+    captureDevice, notesList, detector = initializeProcess()
     previousTime = 0
     previousMusicFrameToPlay = []
 
+    # totalInitProcessTime = timeit.default_timer()-initProcessTimer
+    # print("Initialize process benchmarking: " + str(totalInitProcessTime))
+
     while captureDevice.isOpened():
+        mainLoopTimer = timeit.default_timer()
+
         success, img = captureDevice.read()
+        totalCaptureDeviceReadTime = timeit.default_timer() - mainLoopTimer
+        # print("Read capture device benchmarking: " + str(totalCaptureDeviceReadTime))
+
+        detectHandsTimer = timeit.default_timer()
         img = detector.detectHands(img)
+        totalDetectHandsTime = timeit.default_timer() - detectHandsTimer
+        # print("Detect hands process benchmarking: " + str(totalDetectHandsTime))
+
+        drawHandsTimer = timeit.default_timer()
+        img = detector.drawHandsConnections(img)
+        totalDrawHandsTime = timeit.default_timer() - drawHandsTimer
+        # print("Draw hands and labels benchmarking: " + str(totalDrawHandsTime))
+
+        showKeyboardTimer = timeit.default_timer()
         img = showKeyboard(img, notesList)
-        landmark = detector.findLandmarkList(img)
+        totalShowKeyboardTime = timeit.default_timer() - showKeyboardTimer
+        # print("Show keyboards benchmarking: " + str(totalShowKeyboardTime))
+
+        landmarkToListTimer = timeit.default_timer()
+        landmark = detector.parseLandmarksToList(img)
+        totalLandmarkToListTime = timeit.default_timer() - landmarkToListTimer
+        # print("Parse landmark to list benchmarking: " + str(totalLandmarkToListTime))
+
+        pressedButtonTimer = timeit.default_timer()
         pressedButtonList, img = checkBendFingers(landmark, img)
+        totalPressedButtonTime = timeit.default_timer() - pressedButtonTimer
+        # print("Check press button benchmarking: " + str(totalPressedButtonTime))
 
+        defineCurrentMusicFrameTimer = timeit.default_timer()
         currentMusicFrameToPlay = createMusicFrameToPlay(pressedButtonList)
-        playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay)
-        previousMusicFrameToPlay = currentMusicFrameToPlay
+        totalDefineCurrentMusicFrameTime = timeit.default_timer() - defineCurrentMusicFrameTimer
+        # print("Define current music for frame: " + str(totalDefineCurrentMusicFrameTime))
 
-        currentTime = time.time()
-        fps = 1 / (currentTime - previousTime)
+        playMusicForFrameTimer = timeit.default_timer()
+        playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay)
+        totalPlayMusicFrameTime = timeit.default_timer() - playMusicForFrameTimer
+        # print("PLay music for frame: " + str(totalPlayMusicFrameTime))
+
+        calculateFPSTimer = timeit.default_timer()
+        currentTime, img = calculateFPS(previousTime, img)
+        totalCalculateFPSTimer = timeit.default_timer() - calculateFPSTimer
+        # print("Calculate and draw FPS: " + str(totalCalculateFPSTimer))
+
+        previousMusicFrameToPlay = currentMusicFrameToPlay
         previousTime = currentTime
 
-        cv2.putText(img, "Fps: " + str(int(fps)), (cameraWidth - 150, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
         cv2.imshow("Hand Tracking", img)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+        totalMainLoopTime = timeit.default_timer() - mainLoopTimer
 
         if keyboard.is_pressed("s"):
             saveBenchmarkingDataToCsv()
-            break
+            # break
+
+        mainLoopTimeTable.append(totalMainLoopTime)
+        # print("Main Loop benchmarking: " + str(totalMainLoopTime))
 
     if not captureDevice.isOpened():
         print("Camera is not connected properly!")
@@ -380,6 +441,7 @@ def main():
 
     captureDevice.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
