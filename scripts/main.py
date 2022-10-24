@@ -2,6 +2,7 @@ import mediapipe as mp
 import numpy as np
 import pandas as pd
 from threading import Thread
+from datetime import datetime
 import cv2
 import time
 import pyglet
@@ -41,8 +42,16 @@ buttonList = []
 processDictionary = {}
 
 # Initialize tables to benchmarking process
-mainLoopTimeTable = []
-handDetectorTable = []
+mainLoopTimes = []
+captureDeviceTimes = []
+detectHandsTimes = []
+drawHandsTimes= []
+showKeyboardsTimes= []
+parseLandmarksTimes = []
+definePressedButtonTimes = []
+createMusicFrameTimes = []
+playMusicFrameTimes = []
+calculateFPSTimes = []
 
 
 class HandDetector:
@@ -352,14 +361,37 @@ def calculateFPS(previousTime, img):
 
     return currentTime, img
 
+mainLoopTimes = []
+captureDeviceTimes = []
+detectHandsTimes = []
+drawHandsTimes= []
+showKeyboardsTimes= []
+parseLandmarksTimes = []
+definePressedButtonTimes = []
+createMusicFrameTimes = []
+playMusicFrameTimes = []
+calculateFPSTimes = []
 
 def saveBenchmarkingDataToCsv():
-    benchmarking_data = {'main loop': mainLoopTimeTable
+    benchmarkingData = {'main loop': mainLoopTimes,
+                         'capture device': captureDeviceTimes,
+                         'detect Hands': detectHandsTimes,
+                         'draw Hands': drawHandsTimes,
+                         'show keyboards': showKeyboardsTimes,
+                         'parse landmarks': parseLandmarksTimes,
+                         'pressed buttons': definePressedButtonTimes,
+                         'create music frame': createMusicFrameTimes,
+                         'play music frame': playMusicFrameTimes,
+                         'calculate FPS': calculateFPSTimes
                          }
-    df = df = pd.DataFrame(benchmarking_data, columns=['main loop', 'hand detector'])
+    df = df = pd.DataFrame(benchmarkingData, columns=['main loop', 'capture device', \
+                                                      'detect Hands', 'draw Hands', \
+                                                      'show keyboards','parse landmarks', \
+                                                      'pressed buttons', 'create music frame',\
+                                                      'play music frame', 'calculate FPS'])
     print(df)
-    # df.to_csv('../benchmarking/benchmarking_data' + str(datetime.timestamp(datetime.now())) + '.csv', \
-    # encoding='utf-8', index=False)
+    df.to_csv('../benchmarking/benchmarkingData' + str(datetime.timestamp(datetime.now())) + '.csv', \
+    encoding='utf-8', index=False)
 
 
 def main():
@@ -377,46 +409,55 @@ def main():
 
         success, img = captureDevice.read()
         totalCaptureDeviceReadTime = timeit.default_timer() - mainLoopTimer
+        captureDeviceTimes.append(totalCaptureDeviceReadTime)
         # print("Read capture device benchmarking: " + str(totalCaptureDeviceReadTime))
 
         detectHandsTimer = timeit.default_timer()
         img = detector.detectHands(img)
         totalDetectHandsTime = timeit.default_timer() - detectHandsTimer
+        detectHandsTimes.append(totalDetectHandsTime)
         # print("Detect hands process benchmarking: " + str(totalDetectHandsTime))
 
         drawHandsTimer = timeit.default_timer()
         img = detector.drawHandsConnections(img)
         totalDrawHandsTime = timeit.default_timer() - drawHandsTimer
+        drawHandsTimes.append(totalDrawHandsTime)
         # print("Draw hands and labels benchmarking: " + str(totalDrawHandsTime))
 
         showKeyboardTimer = timeit.default_timer()
         img = showKeyboard(img, notesList)
         totalShowKeyboardTime = timeit.default_timer() - showKeyboardTimer
+        showKeyboardsTimes.append(totalShowKeyboardTime)
         # print("Show keyboards benchmarking: " + str(totalShowKeyboardTime))
 
         landmarkToListTimer = timeit.default_timer()
         landmark = detector.parseLandmarksToList(img)
         totalLandmarkToListTime = timeit.default_timer() - landmarkToListTimer
+        parseLandmarksTimes.append(totalLandmarkToListTime)
         # print("Parse landmark to list benchmarking: " + str(totalLandmarkToListTime))
 
         pressedButtonTimer = timeit.default_timer()
         pressedButtonList, img = checkBendFingers(landmark, img)
         totalPressedButtonTime = timeit.default_timer() - pressedButtonTimer
+        definePressedButtonTimes.append(totalPressedButtonTime)
         # print("Check press button benchmarking: " + str(totalPressedButtonTime))
 
         defineCurrentMusicFrameTimer = timeit.default_timer()
         currentMusicFrameToPlay = createMusicFrameToPlay(pressedButtonList)
         totalDefineCurrentMusicFrameTime = timeit.default_timer() - defineCurrentMusicFrameTimer
+        createMusicFrameTimes.append(totalDefineCurrentMusicFrameTime)
         # print("Define current music for frame: " + str(totalDefineCurrentMusicFrameTime))
 
         playMusicForFrameTimer = timeit.default_timer()
         playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay)
         totalPlayMusicFrameTime = timeit.default_timer() - playMusicForFrameTimer
+        playMusicFrameTimes.append(totalPlayMusicFrameTime)
         # print("PLay music for frame: " + str(totalPlayMusicFrameTime))
 
         calculateFPSTimer = timeit.default_timer()
         currentTime, img = calculateFPS(previousTime, img)
         totalCalculateFPSTimer = timeit.default_timer() - calculateFPSTimer
+        calculateFPSTimes.append(totalCalculateFPSTimer)
         # print("Calculate and draw FPS: " + str(totalCalculateFPSTimer))
 
         previousMusicFrameToPlay = currentMusicFrameToPlay
@@ -427,13 +468,12 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         totalMainLoopTime = timeit.default_timer() - mainLoopTimer
+        mainLoopTimes.append(totalMainLoopTime)
 
         if keyboard.is_pressed("s"):
             saveBenchmarkingDataToCsv()
             # break
 
-        mainLoopTimeTable.append(totalMainLoopTime)
-        # print("Main Loop benchmarking: " + str(totalMainLoopTime))
 
     if not captureDevice.isOpened():
         print("Camera is not connected properly!")
