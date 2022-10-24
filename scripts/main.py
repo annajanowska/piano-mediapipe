@@ -361,16 +361,6 @@ def calculateFPS(previousTime, img):
 
     return currentTime, img
 
-mainLoopTimes = []
-captureDeviceTimes = []
-detectHandsTimes = []
-drawHandsTimes= []
-showKeyboardsTimes= []
-parseLandmarksTimes = []
-definePressedButtonTimes = []
-createMusicFrameTimes = []
-playMusicFrameTimes = []
-calculateFPSTimes = []
 
 def saveBenchmarkingDataToCsv():
     benchmarkingData = {'main loop': mainLoopTimes,
