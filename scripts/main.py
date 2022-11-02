@@ -42,11 +42,6 @@ blackColor = [255, 255, 255]
 buttonList = []
 processDictionary = {}
 
-# Initialize tables to benchmarking process
-mainLoopTable = []
-handDetectorTable = []
-
-
 class HandDetector:
 
     def __init__(self, mode=False, maxNumberHands=2, complexity=1, detectionConfidence=0.6, trackConfidence=0.5):
@@ -142,6 +137,8 @@ def setCaptureDeviceSetting(cameraID=0):
     camera = cv2.VideoCapture(cameraID, cv2.CAP_DSHOW)
     camera.set(3, cameraWidth)
     camera.set(4, cameraHeight)
+
+    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
     return camera
 
@@ -306,7 +303,7 @@ def createMusicFrameToPlay(pressedButtonList):
     return currentMusicFrame
 
 
-def initializeProcess():
+def initializeSystem():
     camera = setCaptureDeviceSetting()
     notes = initializeKeyboard()
     detector = HandDetector()
@@ -334,17 +331,8 @@ def playBuildMusicForFrame(currentMusicFrameToPlay, previousMusicFrameToPlay):
             processDictionary[note] = process
             t.start()
 
-
-def saveBenchmarkingDataToCsv():
-    benchmarking_data = {'main loop' : mainLoopTable,
-                         'hand detector' : handDetectorTable
-                         }
-    df = df = pd.DataFrame(benchmarking_data, columns=['main loop' , 'hand detector'])
-    print(df)
-    df.to_csv('../benchmarking/benchmarking_data' + str(datetime.timestamp(datetime.now())) + '.csv', encoding='utf-8', index=False)
-
 def main():
-    captureDevice, notesList, detector = initializeProcess()
+    captureDevice, notesList, detector = initializeSystem()
 
     previousTime = 0
     previousMusicFrameToPlay = []
@@ -368,10 +356,6 @@ def main():
         cv2.imshow("Hand Tracking", img)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-        if keyboard.is_pressed("s"):
-            saveBenchmarkingDataToCsv()
             break
 
     if not captureDevice.isOpened():
