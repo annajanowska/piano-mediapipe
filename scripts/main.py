@@ -52,6 +52,7 @@ definePressedButtonTimes = []
 createMusicFrameTimes = []
 playMusicFrameTimes = []
 calculateFPSTimes = []
+showImageTimes = []
 
 
 class HandDetector:
@@ -150,6 +151,7 @@ def setCaptureDeviceSetting(cameraID=0):
     camera = cv2.VideoCapture(cameraID, cv2.CAP_DSHOW)
     camera.set(3, cameraWidth)
     camera.set(4, cameraHeight)
+    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
     return camera
 
@@ -313,21 +315,21 @@ def createMusicFrameToPlay(pressedButtonList):
     return currentMusicFrame
 
 
-def initializeProcess():
-    # captureSettingTimer = timeit.default_timer()
+def initializeSystem():
+    #captureSettingTimer = timeit.default_timer()
     camera = setCaptureDeviceSetting()
-    # totalCaptureSettingTime = timeit.default_timer()-captureSettingTimer
-    # print("Capture device benchmarking: " + str(totalCaptureSettingTime))
+    #totalCaptureSettingTime = timeit.default_timer()-captureSettingTimer
+    #print("Capture device benchmarking: " + str(totalCaptureSettingTime))
 
-    # initializeKeyboardTimer = timeit.default_timer()
+    #initializeKeyboardTimer = timeit.default_timer()
     notes = initializeKeyboard()
-    # totalInitializeKeyboardTimer = timeit.default_timer()-initializeKeyboardTimer
-    # print("Keyboard initialize benchmarking: " + str(totalInitializeKeyboardTimer))
+    #totalInitializeKeyboardTimer = timeit.default_timer()-initializeKeyboardTimer
+    #print("Keyboard initialize benchmarking: " + str(totalInitializeKeyboardTimer))
 
-    # handDetectorObjectTimer = timeit.default_timer()
+    #handDetectorObjectTimer = timeit.default_timer()
     detector = HandDetector()
-    # totalHandDetectorObjectTimer = timeit.default_timer()-handDetectorObjectTimer
-    # print("Hand detector object benchmarking: " + str(totalHandDetectorObjectTimer))
+    #totalHandDetectorObjectTimer = timeit.default_timer()-handDetectorObjectTimer
+    #print("Hand detector object benchmarking: " + str(totalHandDetectorObjectTimer))
 
     return camera, notes, detector
 
@@ -372,33 +374,38 @@ def saveBenchmarkingDataToCsv():
                          'pressed buttons': definePressedButtonTimes,
                          'create music frame': createMusicFrameTimes,
                          'play music frame': playMusicFrameTimes,
-                         'calculate FPS': calculateFPSTimes
+                         'calculate FPS': calculateFPSTimes,
+                         'show image': showImageTimes
                          }
+
     df = df = pd.DataFrame(benchmarkingData, columns=['main loop', 'capture device', \
                                                       'detect Hands', 'draw Hands', \
                                                       'show keyboards','parse landmarks', \
                                                       'pressed buttons', 'create music frame',\
-                                                      'play music frame', 'calculate FPS'])
+                                                      'play music frame', 'calculate FPS', \
+                                                      'show image'])
+
     print(df)
     df.to_csv('../benchmarking/benchmarkingData' + str(datetime.timestamp(datetime.now())) + '.csv', \
     encoding='utf-8', index=False)
 
 
 def main():
-    # initProcessTimer = timeit.default_timer()
+    #initSystemTimer = timeit.default_timer()
 
-    captureDevice, notesList, detector = initializeProcess()
+    captureDevice, notesList, detector = initializeSystem()
     previousTime = 0
     previousMusicFrameToPlay = []
 
-    # totalInitProcessTime = timeit.default_timer()-initProcessTimer
-    # print("Initialize process benchmarking: " + str(totalInitProcessTime))
+    #totalInitSystemTime = timeit.default_timer()-initSystemTimer
+    #print("Initialize system benchmarking: " + str(totalInitSystemTime))
 
     while captureDevice.isOpened():
         mainLoopTimer = timeit.default_timer()
 
+        captureDeviceTimer = timeit.default_timer()
         success, img = captureDevice.read()
-        totalCaptureDeviceReadTime = timeit.default_timer() - mainLoopTimer
+        totalCaptureDeviceReadTime = timeit.default_timer() - captureDeviceTimer
         captureDeviceTimes.append(totalCaptureDeviceReadTime)
         # print("Read capture device benchmarking: " + str(totalCaptureDeviceReadTime))
 
@@ -453,7 +460,12 @@ def main():
         previousMusicFrameToPlay = currentMusicFrameToPlay
         previousTime = currentTime
 
+
+        showImageTimer = timeit.default_timer()
         cv2.imshow("Hand Tracking", img)
+        totalshowImageTime = timeit.default_timer() - showImageTimer
+        showImageTimes.append(totalshowImageTime)
+        # print("Show image benchmarking: " + str(totalshowImageTime))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
