@@ -2,6 +2,10 @@
 
 An application that allows the user to play the virtual piano in real time (~30FPS). The system permits composing melodies following the rules of playing this instrument. [Mediapipe](https://mediapipe.dev/) solution is applied to implement this program and used in an interesting, practical, and educational case.
 
+## How to run project?
+* install Python 3.9.2
+
+* add requirements `pip install -r requirements.txt`
 
 
 
