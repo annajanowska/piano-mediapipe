@@ -44,7 +44,7 @@ processDictionary = {}
 
 class HandDetector:
 
-    def __init__(self, mode=False, maxNumberHands=2, complexity=1, detectionConfidence=0.6, trackConfidence=0.5):
+    def __init__(self, mode=False, maxNumberHands=2, complexity=0, detectionConfidence=0.6, trackConfidence=0.5):
         self.mode = mode
         self.maxNumberHands = maxNumberHands
         self.complexity = complexity
