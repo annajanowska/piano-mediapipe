@@ -6,6 +6,7 @@ An application that allows the user to play the virtual piano in real time (~30F
 
 <img src="https://user-images.githubusercontent.com/56201394/221187872-b08ef4d4-90cb-4b28-800f-568b9440712e.png" width="60%" height="60%">
 
+#### Demo: https://drive.google.com/file/d/1BwpVFI9-a8eTWKe5cnrViQi5aJWdz9C2/view?usp=sharing
 
 ## How to run project?
 * install Python 3.9.2
